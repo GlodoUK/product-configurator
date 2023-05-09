@@ -6,9 +6,9 @@
     "version": "15.0.1.0.0",
     "category": "Manufacturing",
     "summary": "BOM Support for configurable products",
-    "author": "Pledra, Odoo Community Association (OCA)",
+    "author": "Pledra, Odoo Community Association (OCA), Glo Networks",
     "license": "AGPL-3",
-    "website": "https://github.com/OCA/product-configurator",
+    "website": "https://github.com/GlodoUK/product-configurator",
     "depends": ["product_configurator_mrp"],
     "data": [
         "security/ir.model.access.csv",

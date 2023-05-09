@@ -29,12 +29,9 @@ class Purchase(ProductConfiguratorTestCases):
                 "company_id": self.company_id.id,
             }
         )
-        context = dict(
+        self.ProductConfWizard = self.env["product.configurator.purchase"].with_context(
             default_order_id=purchase_order_id.id,
             wizard_model="product.configurator.purchase",
-        )
-        self.ProductConfWizard = self.env["product.configurator.purchase"].with_context(
-            context
         )
         purchase_order_id.action_config_start()
         self._configure_product_nxt_step()

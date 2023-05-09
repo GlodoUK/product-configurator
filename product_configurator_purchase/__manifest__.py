@@ -3,9 +3,9 @@
     "version": "15.0.1.0.0",
     "category": "Generic Modules/Purchase",
     "summary": "Product configuration interface for Purchase",
-    "author": "Pledra, Odoo Community Association (OCA)",
+    "author": "Pledra, Odoo Community Association (OCA), Glo Networks",
     "license": "AGPL-3",
-    "website": "https://github.com/OCA/product-configurator",
+    "website": "https://github.com/GlodoUK/product-configurator",
     "depends": ["purchase", "product_configurator"],
     "data": [
         "security/ir.model.access.csv",

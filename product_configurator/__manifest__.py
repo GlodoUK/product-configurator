@@ -3,9 +3,9 @@
     "version": "15.0.1.0.0",
     "category": "Generic Modules/Base",
     "summary": "Base for product configuration interface modules",
-    "author": "Pledra, Odoo Community Association (OCA)",
+    "author": "Pledra, Odoo Community Association (OCA), Glo Networks",
     "license": "AGPL-3",
-    "website": "https://github.com/OCA/product-configurator",
+    "website": "https://github.com/GlodoUK/product-configurator",
     "depends": ["account"],
     "external_dependencies": {
         "python": [
