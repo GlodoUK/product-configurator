@@ -6,19 +6,39 @@ dependency_installation_mode: PIP
 generate_requirements_txt: true
 github_check_license: true
 github_ci_extra_env: {}
-github_enable_codecov: true
-github_enable_makepot: true
-github_enable_stale_action: true
-github_enforce_dev_status_compatibility: true
+github_enable_codecov: false
+github_enable_makepot: false
+github_enable_stale_action: false
+github_enforce_dev_status_compatibility: false
 include_wkhtmltopdf: false
 odoo_version: 15.0
-org_name: Odoo Community Association (OCA)
-org_slug: OCA
+org_name: Glo Networks
+org_slug: GlodoUK
 rebel_module_groups: []
-repo_description: 'TODO: add repo description.'
-repo_name: product-configurator
+repo_description: 'We have forked OCA/product-configurator for a few reasons:
+
+
+    - There does not seem to be much interest in OCA/product-configurator currently
+    and we are struggling to help progress it and under stand some historical decisions.
+
+    - Around 13.0 some changes to how custom options work seem to have been made which
+    fly in the face of many common usage scenarios.
+
+    - We want to try some experimentation to fit the needs of some of our customers
+    without impacting on any existing OCA users.
+
+
+    We are not ruling out merging this repository back into OCA/product-configurator
+    once we understand where we are going with this fork.
+
+
+    We make no guarantees over the current state or stability of this fork.
+
+    '
+repo_name: 'Advanced Product Configurator (originally pledra/odoo-product-configurator,
+    and oca/product-configurator) '
 repo_slug: product-configurator
-repo_website: https://github.com/OCA/product-configurator
+repo_website: https://github.com/GlodoUK/product-configurator
 travis_apt_packages: []
 travis_apt_sources: []
 
