@@ -7,8 +7,8 @@ from odoo import models
 class ProductConfigSession(models.Model):
     _inherit = "product.config.session"
 
+    # flake8: noqa: disable=C901
     def create_get_bom(self, variant, product_tmpl_id=None, values=None):
-
         # default_type is set as 'product' when the user navigates
         # through menu item "Products". This conflicts
         # with the type for mrp.bom when mrpBom.onchange() is executed.
@@ -87,6 +87,9 @@ class ProductConfigSession(models.Model):
                                 values.update(parent_bom_line_vals)
                                 bom_lines.append((0, 0, values))
                 else:
+                    # Support 'Apply on variants' system
+                    if parent_bom_line._skip_bom_line(variant):
+                        continue
                     parent_bom_line_vals = {
                         "product_id": parent_bom_line.product_id.id,
                         "product_qty": parent_bom_line.product_qty,
