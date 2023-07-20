@@ -70,10 +70,12 @@ class ProductTemplate(models.Model):
             ]
             if len(set(attr_val_line_vals)) != len(attr_val_line_vals):
                 raise ValidationError(
-                    _("You cannot have a duplicate configuration for the " "same value")
+                    _("You cannot have a duplicate configuration for the same value")
                 )
 
     config_ok = fields.Boolean(string="Can be Configured")
+
+    config_ref = fields.Char(string="Configurable Internal Reference")
 
     config_image_ids = fields.One2many(
         comodel_name="product.config.image",
@@ -268,12 +270,6 @@ class ProductTemplate(models.Model):
 
         return super(ProductTemplate, self).write(vals)
 
-    @api.model
-    def name_search(self, name="", args=None, operator="ilike", limit=100):
-        domain = args or []
-        domain += ["|", ("name", operator, name), ("default_code", operator, name)]
-        return self.search(domain, limit=limit).name_get()
-
 
 class ProductProduct(models.Model):
     _inherit = "product.product"
@@ -285,17 +281,8 @@ class ProductProduct(models.Model):
     @api.constrains("product_template_attribute_value_ids")
     def _check_duplicate_product(self):
         """Check for prducts with same attribute values/custom values"""
-        for product in self:
-            if not product.config_ok:
-                continue
-
-            # At the moment, I don't have enough confidence with my
-            # understanding of binary attributes, so will leave these
-            # as not matching...
-            # In theory, they should just work, if they are set to "non search"
-            # in custom field def!
-            # TODO: Check the logic with binary attributes
-            config_session_obj = product.env["product.config.session"]
+        config_session_obj = self.env["product.config.session"]
+        for product in self.filtered(lambda p: p.config_ok):
             ptav_ids = product.product_template_attribute_value_ids.mapped(
                 "product_attribute_value_id"
             )
@@ -303,7 +290,6 @@ class ProductProduct(models.Model):
                 product_tmpl_id=product.product_tmpl_id,
                 value_ids=ptav_ids.ids,
             ).filtered(lambda p: p.id != product.id)
-
             if duplicates:
                 raise ValidationError(
                     _(
@@ -414,15 +400,17 @@ class ProductProduct(models.Model):
         )
 
     def unlink(self):
-        """- Signal unlink from product variant through context so
+        """
+        Check access rights of user(configurable products)
+        Signal unlink from product variant through context so
         removal can be stopped for configurable templates
-        - check access rights of user(configurable products)"""
-        config_product = any(p.config_ok for p in self)
-        if config_product:
+        """
+        configurable_products = self.filtered(lambda p: p.config_ok)
+        if configurable_products:
             self.env["product.product"].check_config_user_access(mode="delete")
-        ctx = dict(self.env.context, unlink_from_variant=True)
-        self.env.context = ctx
-        return super(ProductProduct, self).unlink()
+        return super(
+            ProductProduct, self.with_context(unlink_from_variant=True)
+        ).unlink()
 
     @api.model
     def create(self, vals):

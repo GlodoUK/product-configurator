@@ -52,6 +52,13 @@
                 </div>
             </xpath>
 
+            <xpath expr="//field[@name='categ_id']" position="after">
+                <field
+                    name="config_ref"
+                    attrs="{'invisible': [('config_ok', '=', False)]}"
+                />
+            </xpath>
+
             <!-- Product attributes -->
             <xpath expr="//field[@name='attribute_line_ids']" position="attributes">
                 <attribute name="context">{
