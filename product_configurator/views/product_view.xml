@@ -175,6 +175,17 @@
                         name="mako_tmpl_name"
                         groups="product_configurator.group_product_configurator_manager"
                     />
+
+                <separator
+                        string="Variant Internal Reference"
+                        colspan="4"
+                        groups="product_configurator.group_product_configurator_manager"
+                    />
+                    <field
+                        name="mako_tmpl_default_code"
+                        groups="product_configurator.group_product_configurator_manager"
+                    />
+
                 </page>
             </xpath>
 

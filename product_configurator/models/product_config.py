@@ -477,14 +477,15 @@ class ProductConfigSession(models.Model):
             :returns: new/existing product.product recordset
 
         """
-        if self.product_tmpl_id.config_ok:
-            __import__("wdb").set_trace()
-            self.validate_configuration()
+        if not self.product_tmpl_id.config_ok:
+            raise UserError(_("You cannot call this on a non-configurable template"))
+
         if value_ids is None:
             value_ids = self.value_ids.ids
 
-        if custom_vals is None:
-            custom_vals = self._get_custom_vals_dict()
+        # TODO(Karl): FIXME
+        # if custom_vals is None:
+        #     custom_vals = self._get_custom_vals_dict()
 
         self.validate_configuration()
 
@@ -495,16 +496,14 @@ class ProductConfigSession(models.Model):
             return duplicates[:1]
 
         vals = self.get_variant_vals(value_ids, custom_vals)
-        product_obj = (
-            self.env["product.product"].sudo().with_context(mail_create_nolog=True)
-        )
-        variant = product_obj.sudo().create(vals)
-
+        variant = self.env["product.product"].sudo().create(vals)
+        default_code = variant._get_mako_tmpl_default_code()
+        if default_code:
+            variant.default_code = default_code
         variant.message_post(
             body=_("Product created via configuration wizard"),
             author_id=self.env.user.partner_id.id,
         )
-
         return variant
 
     def _get_option_values(self, pricelist, value_ids=None):

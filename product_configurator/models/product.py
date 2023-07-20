@@ -105,8 +105,14 @@ class ProductTemplate(models.Model):
     )
 
     mako_tmpl_name = fields.Text(
-        string="Variant name",
+        string="Variant Name",
         help="Generate Name based on Mako Template",
+        copy=True,
+    )
+
+    mako_tmpl_default_code = fields.Text(
+        string="Variant Internal Reference",
+        help="Generate Internal Reference based on Mako Template",
         copy=True,
     )
 
@@ -318,18 +324,26 @@ class ProductProduct(models.Model):
         define on it's product template"""
         self.ensure_one()
         if self.mako_tmpl_name:
-            try:
-                mytemplate = Template(self.mako_tmpl_name or "")
-                buf = StringIO()
-                ctx = self._get_mako_context(buf)
-                mytemplate.render_context(ctx)
-                return buf.getvalue()
-            except Exception:
-                _logger.error(
-                    _("Error while calculating mako product name: %s")
-                    % self.display_name
-                )
+            mytemplate = Template(self.mako_tmpl_name or "")
+            buf = StringIO()
+            ctx = self._get_mako_context(buf)
+            mytemplate.render_context(ctx)
+            return buf.getvalue()
         return self.display_name
+
+    def _get_mako_tmpl_default_code(self):
+        """
+        Compute and return product default_code based on mako-tamplate
+        define on it's product template
+        """
+        self.ensure_one()
+        if self.mako_tmpl_default_code:
+            mytemplate = Template(self.mako_tmpl_default_code or "")
+            buf = StringIO()
+            ctx = self._get_mako_context(buf)
+            mytemplate.render_context(ctx)
+            return buf.getvalue()
+        return self.config_ref
 
     @api.depends("product_template_attribute_value_ids.weight_extra")
     def _compute_product_weight_extra(self):
