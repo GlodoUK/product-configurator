@@ -60,7 +60,6 @@
                 }</attribute>
             </xpath>
 
-            <!-- TODO: Implement a method to hide this field for non-configurable product templates -->
             <xpath
                 expr="//field[@name='attribute_line_ids']/tree/field[@name='value_ids']"
                 position="after"
@@ -70,40 +69,17 @@
                     domain="[('id', 'in', value_ids)]"
                     context="{'show_attribute': False}"
                     options="{'no_create': True, 'no_create_edit': True}"
-                    invisible="not context.get('default_config_ok', False)"
+                    attrs="{'column_invisible': [('parent.config_ok', '=', False)]}"
                 />
                 <field
                     name="required"
-                    invisible="not context.get('default_config_ok', False)"
+                    attrs="{'column_invisible': [('parent.config_ok', '=', False)]}"
                 />
                 <field
                     name="multi"
-                    invisible="not context.get('default_config_ok', False)"
-                    attrs="{'readonly': [('custom','=',True)]}"
+                    attrs="{'column_invisible': [('parent.config_ok', '=', False)]}"
                     force_save="1"
                 />
-                <field
-                    name="custom"
-                    invisible="not context.get('default_config_ok', False)"
-                    attrs="{'readonly': [('multi','=',True)]}"
-                    force_save="1"
-                />
-            </xpath>
-
-            <xpath
-                expr="//field[@name='attribute_line_ids']/tree/field[@name='value_ids']"
-                position="attributes"
-            >
-                <attribute name="attrs">{'required': [('custom','!=',True)]}</attribute>
-            </xpath>
-
-            <xpath
-                expr="//field[@name='attribute_line_ids']/tree/field[@name='attribute_id']"
-                position="attributes"
-            >
-                <attribute
-                    name="context"
-                >{'flag_config_ok': context.get('default_config_ok', False)}</attribute>
             </xpath>
 
             <xpath

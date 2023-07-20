@@ -1,5 +1,3 @@
-from ast import literal_eval
-
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
@@ -8,174 +6,40 @@ class ProductAttribute(models.Model):
     _inherit = "product.attribute"
     _order = "sequence"
 
-    def copy(self, default=None):
-        """Add ' (Copy)' in name to prevent attribute
-        having same name while copying"""
-        if not default:
-            default = {}
-        new_attrs = self.env["product.attribute"]
-        for attr in self:
-            default.update({"name": attr.name + " (copy)"})
-            new_attrs += super(ProductAttribute, attr).copy(default)
-        return new_attrs
-
-    @api.model
-    def _get_nosearch_fields(self):
-        """Return a list of custom field types that do not support searching"""
-        return ["binary"]
-
-    @api.onchange("custom_type")
-    def onchange_custom_type(self):
-        if self.custom_type in self._get_nosearch_fields():
-            self.search_ok = False
-        if self.custom_type not in ("integer", "float"):
-            self.min_val = False
-            self.max_val = False
-
-    @api.onchange("val_custom")
-    def onchange_val_custom_field(self):
-        if not self.val_custom:
-            self.custom_type = False
-
-    CUSTOM_TYPES = [
-        ("char", "Char"),
-        ("integer", "Integer"),
-        ("float", "Float"),
-        ("text", "Textarea"),
-        ("color", "Color"),
-        ("binary", "Attachment"),
-        ("date", "Date"),
-        ("datetime", "DateTime"),
-    ]
-
     active = fields.Boolean(
         default=True,
-        help="By unchecking the active field you can "
-        "disable a attribute without deleting it",
-    )
-    min_val = fields.Integer(string="Min Value", help="Minimum value allowed")
-    max_val = fields.Integer(string="Max Value", help="Maximum value allowed")
-
-    # TODO: Exclude self from result-set of dependency
-    val_custom = fields.Boolean(
-        string="Custom Value", help="Allow custom value for this attribute?"
-    )
-    custom_type = fields.Selection(
-        selection=CUSTOM_TYPES,
-        string="Field Type",
-        help="The type of the custom field generated in the frontend",
     )
     description = fields.Text(translate=True)
-    search_ok = fields.Boolean(
-        help="When checking for variants with "
-        "the same configuration, do we "
-        "include this field in the search?",
-    )
     required = fields.Boolean(
         default=True,
-        help="Determines the required value of this "
-        "attribute though it can be change on "
-        "the template level",
     )
-    multi = fields.Boolean(
-        help="Allow selection of multiple values for " "this attribute?",
-    )
-    uom_id = fields.Many2one(comodel_name="uom.uom", string="Unit of Measure")
-    image = fields.Binary()
+    multi = fields.Boolean(help="Allow selection of multiple values")
 
-    # TODO prevent the same attribute from being defined twice on the
-    # attribute lines
-
-    @api.constrains("custom_type", "search_ok")
-    def check_searchable_field(self):
-        for attribute in self:
-            nosearch_fields = attribute._get_nosearch_fields()
-            if attribute.custom_type in nosearch_fields and attribute.search_ok:
-                raise ValidationError(
-                    _(
-                        "Selected custom field type '%(custom_type)s' is not"
-                        " searchable"
-                    )
-                    % {"custom_type": attribute.custom_type}
-                )
-
-    def validate_custom_val(self, val):
-        """Pass in a desired custom value and ensure it is valid.
-        Probaly should check type, etc, but let's assume fine for the moment.
-        """
+    @api.returns("self", lambda value: value.id)
+    def copy(self, default=None):
         self.ensure_one()
-        if self.custom_type in ("integer", "float"):
-            minv = self.min_val
-            maxv = self.max_val
-            val = literal_eval(str(val))
-            if minv and maxv and (val < minv or val > maxv):
-                raise ValidationError(
-                    _(
-                        "Selected custom value '%(name)s' must be between"
-                        " %(min_val)s and %(max_val)s"
-                    )
-                    % {
-                        "name": self.name,
-                        "min_val": self.min_val,
-                        "max_val": self.max_val,
-                    }
-                )
-            elif minv and val < minv:
-                raise ValidationError(
-                    _("Selected custom value '%(name)s' must be at least %(min_val)s")
-                    % {"name": self.name, "min_val": self.min_val}
-                )
-            elif maxv and val > maxv:
-                raise ValidationError(
-                    _("Selected custom value '%(name)s' must be lower than %(max_val)s")
-                    % {"name": self.name, "max_val": self.max_val + 1}
-                )
-
-    @api.constrains("min_val", "max_val")
-    def _check_constraint_min_max_value(self):
-        """Prevent to add Maximun value less than minimum value"""
-        for attribute in self:
-            if attribute.custom_type not in ("integer", "float"):
-                continue
-            minv = attribute.min_val
-            maxv = attribute.max_val
-            if maxv and minv and maxv < minv:
-                raise ValidationError(
-                    _("Maximum value must be greater than Minimum value")
-                )
+        default = dict(default or {})
+        if "name" not in default:
+            default["name"] = _("%s (copy)") % (self.name)
+        return super().copy(default=default)
 
 
 class ProductAttributeLine(models.Model):
     _inherit = "product.template.attribute.line"
     _order = "product_tmpl_id, sequence, id"
-    # TODO: Order by dependencies first and then sequence so dependent fields
-    # do not come before master field
 
-    @api.onchange("attribute_id")
-    def onchange_attribute(self):
-        """Set default value of required/multi/cutom from attribute"""
-        self.value_ids = False
-        self.required = self.attribute_id.required
-        self.multi = self.attribute_id.multi
-        self.custom = self.attribute_id.val_custom
-        # TODO: Remove all dependencies pointed towards the attribute being
-        # changed
-
-    @api.onchange("value_ids")
-    def onchange_values(self):
-        if self.default_val and self.default_val not in self.value_ids:
-            self.default_val = None
-
-    custom = fields.Boolean(help="Allow custom values for this attribute?")
-    required = fields.Boolean(help="Is this attribute required?")
-    multi = fields.Boolean(
-        help="Allow selection of multiple values for this attribute?",
-    )
+    required = fields.Boolean(related="attribute_id.required", store=True)
+    multi = fields.Boolean(related="attribute_id.multi", store=True)
     default_val = fields.Many2one(
         comodel_name="product.attribute.value", string="Default Value"
     )
 
     sequence = fields.Integer(default=10)
+
+    @api.onchange("value_ids", "attribute_id")
+    def onchange_values(self):
+        if self.default_val and self.default_val not in self.value_ids:
+            self.default_val = None
 
     @api.constrains("value_ids", "default_val")
     def _check_default_values(self):
@@ -194,54 +58,9 @@ class ProductAttributeLine(models.Model):
                     }
                 )
 
-    @api.constrains("active", "value_ids", "attribute_id")
-    def _check_valid_values(self):
-        """Overwrite to save attribute line without
-        values when custom is true"""
-        for ptal in self:
-            # Customization
-            if ptal.active and not ptal.value_ids and not ptal.custom:
-                # Old code
-                # if ptal.active and not ptal.value_ids:
-                # Customization End
-                raise ValidationError(
-                    _(
-                        "The attribute %(attribute_name)s must have at least one value for "
-                        "the product %(product_name)s."
-                    )
-                    % {
-                        "attribute_name": ptal.attribute_id.display_name,
-                        "product_name": ptal.product_tmpl_id.display_name,
-                    }
-                )
-            for pav in ptal.value_ids:
-                if pav.attribute_id != ptal.attribute_id:
-                    raise ValidationError(
-                        _(
-                            "On the product %(product_name)s you cannot associate the"
-                            " value %(value_name)s with the attribute"
-                            " %(attribute_name)s because they do not match."
-                        )
-                        % {
-                            "product_name": ptal.product_tmpl_id.display_name,
-                            "value_name": pav.display_name,
-                            "attribute_name": ptal.attribute_id.display_name,
-                        }
-                    )
-        return True
-
 
 class ProductAttributeValue(models.Model):
     _inherit = "product.attribute.value"
-
-    def copy(self, default=None):
-        """Add ' (Copy)' in name to prevent attribute
-        having same name while copying"""
-        if not default:
-            default = {}
-        default.update({"name": self.name + " (copy)"})
-        product = super(ProductAttributeValue, self).copy(default)
-        return product
 
     active = fields.Boolean(
         default=True,
@@ -251,10 +70,14 @@ class ProductAttributeValue(models.Model):
     product_id = fields.Many2one(
         comodel_name="product.product", string="Related Product"
     )
-    image = fields.Binary(
-        attachment=True,
-        help="Attribute value image (Display on website for radio buttons)",
-    )
+
+    @api.returns("self", lambda value: value.id)
+    def copy(self, default=None):
+        self.ensure_one()
+        default = dict(default or {})
+        if "name" not in default:
+            default["name"] = _("%s (copy)") % (self.name)
+        return super().copy(default=default)
 
     @api.model
     def get_attribute_value_extra_prices(
@@ -357,11 +180,6 @@ class ProductAttributeValue(models.Model):
         return res
 
     # TODO: Prevent unlinking custom options by overriding unlink
-
-    # _sql_constraints = [
-    #    ('unique_custom', 'unique(id,allow_custom_value)',
-    #    'Only one custom value per dimension type is allowed')
-    # ]
 
 
 class ProductAttributePrice(models.Model):

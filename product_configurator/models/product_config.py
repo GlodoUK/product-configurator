@@ -1566,14 +1566,10 @@ class ProductConfigSessionCustomValue(models.Model):
     _rec_name = "attribute_id"
     _description = "Product Config Session Custom Value"
 
-    @api.depends("attribute_id", "attribute_id.uom_id")
+    @api.depends("attribute_id")
     def _compute_val_name(self):
         for attr_val_custom in self:
-            uom = attr_val_custom.attribute_id.uom_id.name
-            attr_val_custom.name = "%s%s" % (
-                attr_val_custom.value,
-                (" %s" % uom) or "",
-            )
+            attr_val_custom.name = attr_val_custom.value
 
     name = fields.Char(readonly=True, compute="_compute_val_name", store=True)
     attribute_id = fields.Many2one(
