@@ -30,33 +30,7 @@ class ProductAttributeLine(models.Model):
 
     required = fields.Boolean(related="attribute_id.required", store=True)
     multi = fields.Boolean(related="attribute_id.multi", store=True)
-    default_val = fields.Many2one(
-        comodel_name="product.attribute.value", string="Default Value"
-    )
-
     sequence = fields.Integer(default=10)
-
-    @api.onchange("value_ids", "attribute_id")
-    def onchange_values(self):
-        if self.default_val and self.default_val not in self.value_ids:
-            self.default_val = None
-
-    @api.constrains("value_ids", "default_val")
-    def _check_default_values(self):
-        """default value should not be outside of the
-        values selected in attribute line"""
-        for line in self.filtered(lambda l: l.default_val):
-            if line.default_val not in line.value_ids:
-                raise ValidationError(
-                    _(
-                        "Default values for each attribute line must exist in "
-                        "the attribute values (%(attribute_name)s: %(default_name)s)"
-                    )
-                    % {
-                        "attribute_name": line.attribute_id.name,
-                        "default_name": line.default_val.name,
-                    }
-                )
 
 
 class ProductAttributeValue(models.Model):
@@ -69,6 +43,14 @@ class ProductAttributeValue(models.Model):
     )
     product_id = fields.Many2one(
         comodel_name="product.product", string="Related Product"
+    )
+    is_custom_type = fields.Selection(
+        [
+            ("integer", "Integer"),
+            ("float", "Float"),
+            ("char", "Text"),
+        ],
+        string="Custom value type",
     )
 
     @api.returns("self", lambda value: value.id)
@@ -133,53 +115,6 @@ class ProductAttributeValue(models.Model):
                 )
             res_prices.append(val)
         return res_prices
-
-    @api.model
-    def name_search(self, name="", args=None, operator="ilike", limit=100):
-        """Use name_search as a domain restriction for the frontend to show
-        only values set on the product template taking all the configuration
-        restrictions into account.
-
-        TODO: This only works when activating the selection not when typing
-        """
-        product_tmpl_id = self.env.context.get("_cfg_product_tmpl_id")
-        if product_tmpl_id:
-            # TODO: Avoiding browse here could be a good performance enhancer
-            product_tmpl = self.env["product.template"].browse(product_tmpl_id)
-            tmpl_vals = product_tmpl.attribute_line_ids.mapped("value_ids")
-            attr_restrict_ids = []
-            preset_val_ids = []
-            new_args = []
-            for arg in args:
-                # Restrict values only to value_ids set on product_template
-                if arg[0] == "id" and arg[1] == "not in":
-                    preset_val_ids = arg[2]
-                    # TODO: Check if all values are available for configuration
-                else:
-                    new_args.append(arg)
-            val_ids = set(tmpl_vals.ids)
-            if preset_val_ids:
-                val_ids -= set(arg[2])
-            val_ids = self.env["product.config.session"].values_available(
-                val_ids, preset_val_ids, product_tmpl_id=product_tmpl_id
-            )
-            new_args.append(("id", "in", val_ids))
-            mono_tmpl_lines = product_tmpl.attribute_line_ids.filtered(
-                lambda l: not l.multi
-            )
-            for line in mono_tmpl_lines:
-                line_val_ids = set(line.mapped("value_ids").ids)
-                if line_val_ids & set(preset_val_ids):
-                    attr_restrict_ids.append(line.attribute_id.id)
-            if attr_restrict_ids:
-                new_args.append(("attribute_id", "not in", attr_restrict_ids))
-            args = new_args
-        res = super(ProductAttributeValue, self).name_search(
-            name=name, args=args, operator=operator, limit=limit
-        )
-        return res
-
-    # TODO: Prevent unlinking custom options by overriding unlink
 
 
 class ProductAttributePrice(models.Model):

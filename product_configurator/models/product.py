@@ -129,33 +129,6 @@ class ProductTemplate(models.Model):
             if not product_tmpl.config_ok:
                 super(ProductTemplate, product_tmpl)._set_weight()
 
-    def _check_default_values(self):
-        default_val_ids = (
-            self.attribute_line_ids.filtered(lambda l: l.default_val)
-            .mapped("default_val")
-            .ids
-        )
-
-        cfg_session_obj = self.env["product.config.session"]
-        cfg_session_obj.validate_configuration(
-            value_ids=default_val_ids, product_tmpl_id=self.id, final=False
-        )
-
-    @api.constrains("attribute_line_ids")
-    def _check_default_value_domains(self):
-        for template in self:
-            try:
-                template._check_default_values()
-            except ValidationError as e:
-                raise ValidationError(
-                    _(
-                        "Restrictions added make the current default values "
-                        "generate an invalid configuration.\
-                      \n%s"
-                    )
-                    % (e.name)
-                ) from e
-
     def toggle_config(self):
         for record in self:
             record.config_ok = not record.config_ok

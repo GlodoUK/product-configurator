@@ -65,13 +65,6 @@
                 position="after"
             >
                 <field
-                    name="default_val"
-                    domain="[('id', 'in', value_ids)]"
-                    context="{'show_attribute': False}"
-                    options="{'no_create': True, 'no_create_edit': True}"
-                    attrs="{'column_invisible': [('parent.config_ok', '=', False)]}"
-                />
-                <field
                     name="required"
                     attrs="{'column_invisible': [('parent.config_ok', '=', False)]}"
                 />

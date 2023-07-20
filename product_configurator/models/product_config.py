@@ -52,9 +52,6 @@ class ProductConfigStep(models.Model):
     _name = "product.config.step"
     _description = "Product Config Steps"
 
-    # TODO Prevent values which have dependencies to be set in a
-    # step with higher sequence than the dependency
-
     name = fields.Char(required=True, translate=True)
 
 
@@ -108,7 +105,7 @@ class ProductConfigSession(models.Model):
         "product_tmpl_id.attribute_line_ids",
         "product_tmpl_id.attribute_line_ids.value_ids",
         "product_tmpl_id.attribute_line_ids.product_template_value_ids",
-        "product_tmpl_id.attribute_line_ids." "product_template_value_ids.price_extra",
+        "product_tmpl_id.attribute_line_ids.product_template_value_ids.price_extra",
     )
     def _compute_cfg_price(self):
         for session in self:
@@ -392,45 +389,46 @@ class ProductConfigSession(models.Model):
         if value_ids != self.value_ids.ids:
             update_vals.update({"value_ids": [(6, 0, value_ids)]})
 
-        # Remove all custom values included in the custom_vals dict
-        self.custom_value_ids.filtered(
-            lambda x: x.attribute_id.id in custom_val_dict.keys()
-        ).unlink()
-
-        if custom_val_dict:
-            binary_field_ids = (
-                self.env["product.attribute"]
-                .search(
-                    [
-                        ("id", "in", list(custom_val_dict.keys())),
-                        ("custom_type", "=", "binary"),
-                    ]
-                )
-                .ids
-            )
-        for attr_id, vals in custom_val_dict.items():
-            if not vals:
-                continue
-
-            if "custom_value_ids" not in update_vals:
-                update_vals["custom_value_ids"] = []
-
-            custom_vals = {"attribute_id": attr_id}
-
-            if attr_id in binary_field_ids:
-                attachments = [
-                    (
-                        0,
-                        0,
-                        {"name": val.get("name"), "datas": val.get("datas")},
-                    )
-                    for val in vals
-                ]
-                custom_vals.update({"attachment_ids": attachments})
-            else:
-                custom_vals.update({"value": vals})
-
-            update_vals["custom_value_ids"].append((0, 0, custom_vals))
+        # TODO(Karl): FIXME
+        # # Remove all custom values included in the custom_vals dict
+        # self.custom_value_ids.filtered(
+        #     lambda x: x.attribute_id.id in custom_val_dict.keys()
+        # ).unlink()
+        #
+        # if custom_val_dict:
+        #     binary_field_ids = (
+        #         self.env["product.attribute"]
+        #         .search(
+        #             [
+        #                 ("id", "in", list(custom_val_dict.keys())),
+        #                 ("custom_type", "=", "binary"),
+        #             ]
+        #         )
+        #         .ids
+        #     )
+        # for attr_id, vals in custom_val_dict.items():
+        #     if not vals:
+        #         continue
+        #
+        #     if "custom_value_ids" not in update_vals:
+        #         update_vals["custom_value_ids"] = []
+        #
+        #     custom_vals = {"attribute_id": attr_id}
+        #
+        #     if attr_id in binary_field_ids:
+        #         attachments = [
+        #             (
+        #                 0,
+        #                 0,
+        #                 {"name": val.get("name"), "datas": val.get("datas")},
+        #             )
+        #             for val in vals
+        #         ]
+        #         custom_vals.update({"attachment_ids": attachments})
+        #     else:
+        #         custom_vals.update({"value": vals})
+        #
+        #     update_vals["custom_value_ids"].append((0, 0, custom_vals))
         self.write(update_vals)
 
     def write(self, vals):
@@ -460,29 +458,12 @@ class ProductConfigSession(models.Model):
             self.env["product.template"].browse(vals.get("product_tmpl_id")).exists()
         )
         if product_tmpl:
-            default_val_ids = (
-                product_tmpl.attribute_line_ids.filtered(lambda l: l.default_val)
-                .mapped("default_val")
-                .ids
-            )
             value_ids = vals.get("value_ids")
-            if value_ids:
-                default_val_ids += value_ids[0][2]
-            try:
-                self.validate_configuration(
-                    value_ids=default_val_ids,
-                    final=False,
-                    product_tmpl_id=product_tmpl.id,
-                )
-                # TODO: Remove if cond when PR with
-                # raise error on github is merged
-            except ValidationError as ex:
-                raise ValidationError(_("%s") % ex.name) from ex
-            except Exception as ex:
-                raise ValidationError(
-                    _("Default values provided generate an invalid configuration")
-                ) from ex
-            vals.update({"value_ids": [(6, 0, default_val_ids)]})
+            self.validate_configuration(
+                value_ids=value_ids,
+                final=False,
+                product_tmpl_id=product_tmpl.id,
+            )
         return super(ProductConfigSession, self).create(vals)
 
     def create_get_variant(self, value_ids=None, custom_vals=None):
@@ -497,6 +478,7 @@ class ProductConfigSession(models.Model):
 
         """
         if self.product_tmpl_id.config_ok:
+            __import__("wdb").set_trace()
             self.validate_configuration()
         if value_ids is None:
             value_ids = self.value_ids.ids
@@ -504,12 +486,7 @@ class ProductConfigSession(models.Model):
         if custom_vals is None:
             custom_vals = self._get_custom_vals_dict()
 
-        try:
-            self.validate_configuration()
-        except ValidationError as ex:
-            raise ValidationError(_("%s") % ex.name) from ex
-        except Exception as ex:
-            raise ValidationError(_("Invalid Configuration")) from ex
+        self.validate_configuration()
 
         duplicates = self.search_variant(
             value_ids=value_ids, product_tmpl_id=self.product_tmpl_id
@@ -995,19 +972,6 @@ class ProductConfigSession(models.Model):
             custom_vals = self._get_custom_vals_dict()
 
         # TODO(Karl): Add support for standard exclusions!
-        #
-        # avail_val_ids = []
-        # for attr_val_id in check_val_ids:
-        #     config_lines = product_tmpl.config_line_ids.filtered(
-        #         lambda l: attr_val_id in l.value_ids.ids
-        #     )
-        #     domains = config_lines.mapped("domain_id").compute_domain()
-        #     avail = self.validate_domains_against_sels(domains, value_ids, custom_vals)
-        #     if avail:
-        #         avail_val_ids.append(attr_val_id)
-        #     elif attr_val_id in value_ids:
-        #         value_ids.remove(attr_val_id)
-
         # temporary patch until exclusions support is added
         avail_val_ids = check_val_ids
 
@@ -1189,9 +1153,6 @@ class ProductConfigSession(models.Model):
         if value_ids is None:
             value_ids = self.value_ids.ids
 
-        custom_value_id = self.get_custom_value_id()
-        value_ids = list(set(value_ids) - set(custom_value_id.ids))
-
         if not product_tmpl_id:
             product_tmpl_id = self.product_tmpl_id
             if not product_tmpl_id:
@@ -1240,8 +1201,6 @@ class ProductConfigSession(models.Model):
         )
         return self.create(vals)
 
-    # TODO: Disallow duplicates
-
     def flatten_val_ids(self, value_ids):
         """Return a list of value_ids from a list with a mix of ids
         and list of ids (multiselection)
@@ -1270,28 +1229,6 @@ class ProductConfigSession(models.Model):
             for v in prices["vals"]
         ]
         return prices
-
-    def encode_custom_values(self, custom_vals):
-        """Hook to alter the values of the custom values before creating
-        or writing
-        :param custom_vals: dict {product.attribute.id: custom_value}
-        :returns: list of custom values compatible with write and create
-        """
-        attr_obj = self.env["product.attribute"]
-        binary_attribute_ids = attr_obj.search([("custom_type", "=", "binary")]).ids
-        custom_lines = []
-
-        for key, val in custom_vals.items():
-            custom_vals = {"attribute_id": key}
-            # TODO: Is this extra check neccesairy as we already make
-            # the check in validate_configuration?
-            attr_obj.browse(key).validate_custom_val(val)
-            if key in binary_attribute_ids:
-                custom_vals.update({"attachment_ids": [(6, 0, val.ids)]})
-            else:
-                custom_vals.update({"value": val})
-            custom_lines.append((0, 0, custom_vals))
-        return custom_lines
 
     @api.model
     def get_child_specification(self, model, parent):
@@ -1324,10 +1261,12 @@ class ProductConfigSession(models.Model):
 
     @api.model
     def get_vals_to_write(self, values, model):
-        """Return values in formate excepted by write/create methods
+        """
+        Return values in formate excepted by write/create methods
         - same functionality by _convert_to_write
         - needed this method because odoo don't call convert to write
-        for the many2many/one2many fields"""
+        for the many2many/one2many fields
+        """
         model_obj = self.env[model]
         values = model_obj._convert_to_write(values)
         fields = model_obj._fields
@@ -1369,23 +1308,11 @@ class ProductConfigSessionCustomValue(models.Model):
         string="Session",
     )
     value = fields.Char(help="Custom value held as string")
-    attachment_ids = fields.Many2many(
-        comodel_name="ir.attachment",
-        relation="product_config_session_custom_value_attachment_rel",
-        column1="cfg_sesion_custom_val_id",
-        column2="attachment_id",
-        string="Attachments",
-    )
 
     def eval(self):
         """Return custom value evaluated using the related custom field type"""
         field_type = self.attribute_id.custom_type
-        if field_type == "binary":
-            vals = self.attachment_ids.mapped("datas")
-            if len(vals) == 1:
-                return vals[0]
-            return vals
-        elif field_type == "integer":
+        if field_type == "integer":
             return int(self.value)
         elif field_type == "float":
             return float(self.value)

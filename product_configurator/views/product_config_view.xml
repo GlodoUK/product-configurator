@@ -85,10 +85,6 @@
                                 <tree editable="bottom">
                                     <field name="attribute_id" />
                                     <field name="value" />
-                                    <field
-                                        name="attachment_ids"
-                                        widget="many2many_tags"
-                                    />
                                 </tree>
                             </field>
                         </page>

@@ -9,6 +9,15 @@
             <xpath expr="//group[@name='main_fields']" position="inside">
                 <field name="active" />
             </xpath>
+            <xpath
+                expr="//field[@name='value_ids']/tree/field[@name='is_custom']"
+                position="after"
+            >
+                <field
+                    name="is_custom_type"
+                    attrs="{'invisible': [('is_custom', '=', False)]}"
+                />
+            </xpath>
             <xpath expr="//notebook//page" position="after">
                 <page
                     string="Configurator"
