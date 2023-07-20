@@ -75,13 +75,6 @@ class ProductTemplate(models.Model):
 
     config_ok = fields.Boolean(string="Can be Configured")
 
-    config_line_ids = fields.One2many(
-        comodel_name="product.config.line",
-        inverse_name="product_tmpl_id",
-        string="Attribute Dependencies",
-        copy=False,
-    )
-
     config_image_ids = fields.One2many(
         comodel_name="product.config.image",
         inverse_name="product_tmpl_id",
@@ -144,18 +137,11 @@ class ProductTemplate(models.Model):
         )
 
         cfg_session_obj = self.env["product.config.session"]
-        try:
-            cfg_session_obj.validate_configuration(
-                value_ids=default_val_ids, product_tmpl_id=self.id, final=False
-            )
-        except ValidationError as ex:
-            raise ValidationError(ex.name) from ex
-        except Exception as ex:
-            raise ValidationError(
-                _("Default values provided generate an invalid configuration")
-            ) from ex
+        cfg_session_obj.validate_configuration(
+            value_ids=default_val_ids, product_tmpl_id=self.id, final=False
+        )
 
-    @api.constrains("config_line_ids", "attribute_line_ids")
+    @api.constrains("attribute_line_ids")
     def _check_default_value_domains(self):
         for template in self:
             try:
@@ -210,22 +196,6 @@ class ProductTemplate(models.Model):
         attribute_line_dict = {}
         for line in res.attribute_line_ids:
             attribute_line_dict.update({line.attribute_id.id: line.id})
-
-        # Restrictions
-        for line in self.config_line_ids:
-            old_restriction = line.domain_id
-            new_restriction = old_restriction.copy()
-            config_line_default = {
-                "product_tmpl_id": res.id,
-                "domain_id": new_restriction.id,
-            }
-            new_attribute_line_id = attribute_line_dict.get(
-                line.attribute_line_id.attribute_id.id, False
-            )
-            if not new_attribute_line_id:
-                continue
-            config_line_default.update({"attribute_line_id": new_attribute_line_id})
-            line.copy(config_line_default)
 
         # Config steps
         config_step_line_default = {"product_tmpl_id": res.id}
@@ -325,40 +295,6 @@ class ProductTemplate(models.Model):
 
         return super(ProductTemplate, self).write(vals)
 
-    @api.constrains("config_line_ids")
-    def _check_config_line_domain(self):
-        attribute_line_ids = self.attribute_line_ids
-        tmpl_value_ids = attribute_line_ids.mapped("value_ids")
-        tmpl_attribute_ids = attribute_line_ids.mapped("attribute_id")
-        error_message = False
-        for domain_id in self.config_line_ids.mapped("domain_id"):
-            domain_attr_ids = domain_id.domain_line_ids.mapped("attribute_id")
-            domain_value_ids = domain_id.domain_line_ids.mapped("value_ids")
-            invalid_value_ids = domain_value_ids - tmpl_value_ids
-            invalid_attribute_ids = domain_attr_ids - tmpl_attribute_ids
-            if not invalid_value_ids and not invalid_value_ids:
-                continue
-            if not error_message:
-                error_message = _(
-                    "Following Attribute/Value from restriction "
-                    "are not present in template attributes/values. "
-                    "Please make sure you are adding right restriction"
-                )
-            error_message += _("\nRestriction: %s") % (domain_id.name)
-            error_message += (
-                invalid_attribute_ids
-                and _("\nAttribute/s: %s")
-                % (", ".join(invalid_attribute_ids.mapped("name")))
-                or ""
-            )
-            error_message += (
-                invalid_value_ids
-                and _("\nValue/s: %s\n") % (", ".join(invalid_value_ids.mapped("name")))
-                or ""
-            )
-        if error_message:
-            raise ValidationError(error_message)
-
     @api.model
     def name_search(self, name="", args=None, operator="ilike", limit=100):
         domain = args or []
@@ -368,7 +304,6 @@ class ProductTemplate(models.Model):
 
 class ProductProduct(models.Model):
     _inherit = "product.product"
-    _rec_name = "config_name"
 
     def _get_conversions_dict(self):
         conversions = {"float": float, "integer": int}
@@ -403,12 +338,6 @@ class ProductProduct(models.Model):
                         "(identical attribute values)"
                     )
                 )
-
-    def _get_config_name(self):
-        """Name for configured products
-        :param: return : String"""
-        self.ensure_one()
-        return self.name
 
     def _get_mako_context(self, buf):
         """Return context needed for computing product name based
@@ -463,9 +392,6 @@ class ProductProduct(models.Model):
         """Store weight in dummy field"""
         self.weight_dummy = self.weight
 
-    config_name = fields.Char(
-        string="Configuration Name", compute="_compute_config_name"
-    )
     weight_extra = fields.Float(compute="_compute_product_weight_extra", store=True)
     weight_dummy = fields.Float(string="Manual Weight", digits="Stock Weight")
     weight = fields.Float(
@@ -476,15 +402,6 @@ class ProductProduct(models.Model):
 
     # product preset
     config_preset_ok = fields.Boolean(string="Is Preset")
-
-    def _compute_config_name(self):
-        """Compute the name of the configurable products and use template
-        name for others"""
-        for product in self:
-            if product.config_ok:
-                product.config_name = product._get_config_name()
-            else:
-                product.config_name = product.name
 
     def reconfigure_product(self):
         """launches a product configurator wizard with a linked

@@ -102,41 +102,9 @@
                         string="Configuration Restrictions"
                         name="configurator_restrictions"
                     />
-                <field
-                        name="config_line_ids"
-                        attrs="{'readonly': [('attribute_line_ids','=',[])]}"
-                        context="{'show_attribute': False}"
-                    >
-                    <tree editable="bottom">
-                        <field name="sequence" widget="handle" />
-                        <field
-                                name="attribute_line_id"
-                                domain="[('product_tmpl_id','=',parent.id)]"
-                                options="{'no_create': True, 'no_create_edit': True}"
-                            />
-                        <!-- # TODO: Find a more elegant way to restrict the value_ids -->
-                        <field
-                                name="attr_line_val_ids"
-                                widget="many2many_tags"
-                                invisible="True"
-                            />
-                        <field
-                                name="value_ids"
-                                widget="many2many_tags"
-                                attrs="{'readonly': [('attribute_line_id','=',False)]}"
-                                domain="[('id','in',attr_line_val_ids)]"
-                                options="{'no_create': True, 'no_create_edit': True}"
-                                context="{'show_attribute': False}"
-                            />
-                        <field
-                                name="domain_id"
-                                context="{'product_tmpl_id': product_tmpl_id or active_id or parent.id, 'product_attribute_ids': template_attribute_ids, 'form_view_ref': 'product_configurator.product_config_domain_form_view_template'}"
-                            />
-                        <field name="product_tmpl_id" invisible="1" />
-                        <field name="template_attribute_ids" invisible="1" />
-
-                    </tree>
-                </field>
+                <p
+                        colspan="4"
+                    >Configuration restrictions have been retired in our fork of this module, and replaced with standard product exclusions.</p>
                 <separator
                         colspan="4"
                         string="Configuration Steps"

@@ -99,21 +99,6 @@
         sequence="30"
     />
 
-    <record id="product_config_domain_action" model="ir.actions.act_window">
-        <field name="name">Configuration Restrictions</field>
-        <field name="type">ir.actions.act_window</field>
-        <field name="res_model">product.config.domain</field>
-        <field name="view_mode">tree,form</field>
-    </record>
-
-    <menuitem
-        id="menu_product_config_domain_action"
-        action="product_config_domain_action"
-        name="Configuration Restrictions"
-        parent="menu_product_configurable_settings"
-        sequence="40"
-    />
-
     <record id="product_config_session" model="ir.actions.act_window">
         <field name="name">Configuration Sessions</field>
         <field name="type">ir.actions.act_window</field>
