@@ -31,20 +31,11 @@ class ProductConfigImage(models.Model):
         restrictions on linked product template"""
         cfg_session_obj = self.env["product.config.session"]
         for cfg_img in self:
-            try:
-                cfg_session_obj.validate_configuration(
-                    value_ids=cfg_img.value_ids.ids,
-                    product_tmpl_id=cfg_img.product_tmpl_id.id,
-                    final=False,
-                )
-            except ValidationError as ex:
-                raise ValidationError(
-                    _(
-                        "Values entered for line '%s' generate "
-                        "a incompatible configuration"
-                    )
-                    % cfg_img.name
-                ) from ex
+            cfg_session_obj.validate_configuration(
+                value_ids=cfg_img.value_ids.ids,
+                product_tmpl_id=cfg_img.product_tmpl_id.id,
+                final=False,
+            )
 
 
 class ProductConfigStep(models.Model):
@@ -335,12 +326,7 @@ class ProductConfigSession(models.Model):
         avail_val_ids = self.values_available(value_ids)
         if set(value_ids) - set(avail_val_ids):
             self.value_ids = [(6, 0, avail_val_ids)]
-        try:
-            self.validate_configuration(final=False)
-        except ValidationError as ex:
-            raise ValidationError(_("%s") % ex.name) from ex
-        except Exception as ex:
-            raise ValidationError(_("Invalid Configuration")) from ex
+        self.validate_configuration(final=False)
         return res
 
     @api.model
