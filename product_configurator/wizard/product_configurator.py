@@ -59,7 +59,7 @@ class ProductConfigurator(models.TransientModel):
                 static_fields[field_name] = fields[field_name]
         return static_fields
 
-    @api.depends("product_tmpl_id", "value_ids", "custom_value_ids")
+    @api.depends("product_tmpl_id", "value_ids")
     def _compute_cfg_image(self):
         # TODO: Update when allowing custom values to influence image
         for configurator in self:
@@ -849,11 +849,9 @@ class ProductConfigurator(models.TransientModel):
             vals = attr_line.value_ids.filtered(
                 lambda v: v in self.value_ids
             ).with_context(
-                {
-                    "show_attribute": False,
-                    "show_price_extra": True,
-                    "active_id": self.product_tmpl_id.id,
-                }
+                show_attribute=False,
+                show_price_extra=True,
+                active_id=self.product_tmpl_id.id,
             )
 
             # TODO(Karl): fix me
@@ -885,8 +883,10 @@ class ProductConfigurator(models.TransientModel):
         return res
 
     def write(self, vals):
-        """Prevent database storage of dynamic fields and instead write values
-        to database persistent value_ids field"""
+        """
+        Prevent database storage of dynamic fields and instead write values
+        to database persistent value_ids field
+        """
 
         # Remove all dynamic fields from write values
         self.config_session_id.update_session_configuration_value(
@@ -894,7 +894,7 @@ class ProductConfigurator(models.TransientModel):
         )
         vals = self._remove_dynamic_fields(vals)
 
-        return super(ProductConfigurator, self).write(vals)
+        return super().write(vals)
 
     def action_next_step(self):
         """Proceeds to the next step of the configuration process. This usually
@@ -919,7 +919,8 @@ class ProductConfigurator(models.TransientModel):
             state=self.state,
             product_tmpl_id=self.product_tmpl_id,
             value_ids=self.config_session_id.value_ids,
-            custom_value_ids=self.config_session_id.custom_value_ids,
+            # FIXME(Karl):
+            # custom_value_ids=self.config_session_id.custom_value_ids,
         )
         if not next_step:
             return self.action_config_done()
@@ -960,17 +961,13 @@ class ProductConfigurator(models.TransientModel):
     def action_reset(self):
         """Delete wizard and configuration session then create
         a new wizard+session and return an action for the new wizard object"""
-        try:
+
+        session_product_tmpl_id = self.env["product.template"]
+
+        if self.config_session_id:
             session = self.config_session_id
-            # Field parent_id(of session) defind in
-            # product_configurator_subconfig, so this code should
-            # be moved in product_configurator_subconfig
-            # while session.parent_id:
-            #     session = session.parent_id
             session_product_tmpl_id = session.product_tmpl_id
             session.unlink()
-        except Exception:
-            session = self.env["product.config.step"]
 
         action = self.with_context(
             wizard_id=None,
@@ -1023,15 +1020,10 @@ class ProductConfigurator(models.TransientModel):
         return wizard_action
 
     def action_config_done(self):
-        """This method is for the final step which will be taken care by a
-        separate module"""
-        # This try except is too generic.
-        # The create_variant routine could effectively fail for
-        # a large number of reasons, including bad programming.
-        # It should be refactored.
-        # In the meantime, at least make sure that a validation
-        # error legitimately raised in a nested routine
-        # is passed through.
+        """
+        This method is for the final step which will be taken care by a
+        separate module
+        """
         step_to_open = self.config_session_id.check_and_open_incomplete_step()
         if step_to_open:
             return self.open_step(step_to_open)

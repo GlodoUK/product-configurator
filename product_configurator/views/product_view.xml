@@ -80,6 +80,11 @@
                     attrs="{'column_invisible': [('parent.config_ok', '=', False)]}"
                     force_save="1"
                 />
+                <field
+                    name="propagate_to_variant"
+                    attrs="{'column_invisible': [('parent.config_ok', '=', False)]}"
+                    force_save="1"
+                />
             </xpath>
 
             <xpath

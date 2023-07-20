@@ -14,6 +14,10 @@ class ProductAttribute(models.Model):
         default=True,
     )
     multi = fields.Boolean(help="Allow selection of multiple values")
+    propagate_to_variant = fields.Boolean(
+        help="Propagate to the Variant",
+        default=True,
+    )
 
     @api.returns("self", lambda value: value.id)
     def copy(self, default=None):
@@ -28,9 +32,12 @@ class ProductAttributeLine(models.Model):
     _inherit = "product.template.attribute.line"
     _order = "product_tmpl_id, sequence, id"
 
+    sequence = fields.Integer(default=10)
     required = fields.Boolean(related="attribute_id.required", store=True)
     multi = fields.Boolean(related="attribute_id.multi", store=True)
-    sequence = fields.Integer(default=10)
+    propagate_to_variant = fields.Boolean(
+        related="attribute_id.propagate_to_variant", store=True
+    )
 
 
 class ProductAttributeValue(models.Model):

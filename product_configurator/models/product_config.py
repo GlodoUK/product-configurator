@@ -139,19 +139,15 @@ class ProductConfigSession(models.Model):
                 session.config_step_name = session.config_step
 
     @api.model
-    def get_cfg_weight(self, value_ids=None, custom_vals=None):
+    def get_cfg_weight(self, value_ids=None):
         """Computes the weight of the configured product based on the
         configuration passed in via value_ids and custom_values
 
         :param value_ids: list of attribute value_ids
-        :param custom_vals: dictionary of custom attribute values
         :returns: final configuration weight"""
 
         if value_ids is None:
             value_ids = self.value_ids.ids
-
-        if custom_vals is None:
-            custom_vals = {}
 
         product_tmpl = self.product_tmpl_id
 
@@ -215,11 +211,6 @@ class ProductConfigSession(models.Model):
         column2="attr_val_id",
     )
     user_id = fields.Many2one(comodel_name="res.users", required=True)
-    custom_value_ids = fields.One2many(
-        comodel_name="product.config.session.custom.value",
-        inverse_name="cfg_session_id",
-        string="Custom Values",
-    )
     price = fields.Float(
         compute="_compute_cfg_price",
         store=True,
@@ -276,7 +267,6 @@ class ProductConfigSession(models.Model):
         )
 
         attr_val_dict = {}
-        custom_val_dict = {}
         for attr_line in product_tmpl_id.attribute_line_ids:
             attr_id = attr_line.attribute_id.id
             field_name = field_prefix + str(attr_id)
@@ -299,11 +289,9 @@ class ProductConfigSession(models.Model):
                 )
             attr_val_dict.update({attr_id: field_val})
 
-            # TODO(Karl): FIXME re-add custom options support
+        self.update_config(attr_val_dict)
 
-        self.update_config(attr_val_dict, custom_val_dict)
-
-    def update_config(self, attr_val_dict=None, custom_val_dict=None):
+    def update_config(self, attr_val_dict=None):
         """Update the session object with the given value_ids and custom values.
 
         Use this method instead of write in order to prevent incompatible
@@ -313,17 +301,9 @@ class ProductConfigSession(models.Model):
             int (attribute_id): attribute_value_id OR [attribute_value_ids]
         }
 
-        :custom_val_dict: Dictionary of the form {
-            int (attribute_id): {
-                'value': 'custom val',
-            }
-        }
-
         """
         if attr_val_dict is None:
             attr_val_dict = {}
-        if custom_val_dict is None:
-            custom_val_dict = {}
         update_vals = {}
 
         value_ids = self.value_ids.ids
@@ -343,46 +323,6 @@ class ProductConfigSession(models.Model):
         if value_ids != self.value_ids.ids:
             update_vals.update({"value_ids": [(6, 0, value_ids)]})
 
-        # TODO(Karl): FIXME
-        # # Remove all custom values included in the custom_vals dict
-        # self.custom_value_ids.filtered(
-        #     lambda x: x.attribute_id.id in custom_val_dict.keys()
-        # ).unlink()
-        #
-        # if custom_val_dict:
-        #     binary_field_ids = (
-        #         self.env["product.attribute"]
-        #         .search(
-        #             [
-        #                 ("id", "in", list(custom_val_dict.keys())),
-        #                 ("custom_type", "=", "binary"),
-        #             ]
-        #         )
-        #         .ids
-        #     )
-        # for attr_id, vals in custom_val_dict.items():
-        #     if not vals:
-        #         continue
-        #
-        #     if "custom_value_ids" not in update_vals:
-        #         update_vals["custom_value_ids"] = []
-        #
-        #     custom_vals = {"attribute_id": attr_id}
-        #
-        #     if attr_id in binary_field_ids:
-        #         attachments = [
-        #             (
-        #                 0,
-        #                 0,
-        #                 {"name": val.get("name"), "datas": val.get("datas")},
-        #             )
-        #             for val in vals
-        #         ]
-        #         custom_vals.update({"attachment_ids": attachments})
-        #     else:
-        #         custom_vals.update({"value": vals})
-        #
-        #     update_vals["custom_value_ids"].append((0, 0, custom_vals))
         self.write(update_vals)
 
     def write(self, vals):
@@ -420,7 +360,7 @@ class ProductConfigSession(models.Model):
             )
         return super(ProductConfigSession, self).create(vals)
 
-    def create_get_variant(self, value_ids=None, custom_vals=None):
+    def create_get_variant(self, value_ids=None):
         """Creates a new product variant with the attributes passed
         via value_ids and custom_values or retrieves an existing
         one based on search result
@@ -437,8 +377,6 @@ class ProductConfigSession(models.Model):
         if value_ids is None:
             value_ids = self.value_ids.ids
 
-        # TODO(Karl): FIXME re-add custom vals support
-        # FIXME: validation_configuration should validate custom vals!
         self.validate_configuration()
 
         duplicates = self.search_variant(
@@ -447,7 +385,7 @@ class ProductConfigSession(models.Model):
         if duplicates:
             return duplicates[:1]
 
-        vals = self.get_variant_vals(value_ids, custom_vals)
+        vals = self.get_variant_vals(value_ids)
         variant = self.env["product.product"].sudo().create(vals)
         default_code = variant._get_mako_tmpl_default_code()
         if default_code:
@@ -502,19 +440,15 @@ class ProductConfigSession(models.Model):
         return prices
 
     @api.model
-    def get_cfg_price(self, value_ids=None, custom_vals=None):
+    def get_cfg_price(self, value_ids=None):
         """Computes the price of the configured product based on the
             configuration passed in via value_ids and custom_values
 
         :param value_ids: list of attribute value_ids
-        :param custom_vals: dictionary of custom attribute values
         :returns: final configuration price"""
 
         if value_ids is None:
             value_ids = self.value_ids.ids
-
-        if custom_vals is None:
-            custom_vals = {}
 
         product_tmpl = self.product_tmpl_id
         self = self.with_context(active_id=product_tmpl.id)
@@ -530,7 +464,7 @@ class ProductConfigSession(models.Model):
         price_extra = sum(extra_prices.values())
         return product_tmpl.list_price + price_extra
 
-    def _get_config_image(self, value_ids=None, custom_vals=None, size=None):
+    def _get_config_image(self, value_ids=None, size=None):
         """
         Retreive the image object that most closely resembles the configuration
         code sent via value_ids list
@@ -538,17 +472,11 @@ class ProductConfigSession(models.Model):
         The default image object is the template (self)
         :param value_ids: a list representing the ids of attribute values
                          (usually stored in the user's session)
-        :param custom_vals: dictionary of custom attribute values
         :returns: path to the selected image
         """
         # TODO: Also consider custom values for image change
         if value_ids is None:
             value_ids = self.value_ids.ids
-
-        if custom_vals is None:
-            # TODO(Karl)
-            # custom_vals = self._get_custom_vals_dict()
-            custom_vals = {}
 
         img_obj = self.product_tmpl_id
         max_matches = 0
@@ -560,19 +488,17 @@ class ProductConfigSession(models.Model):
                 max_matches = matches
         return img_obj
 
-    def get_config_image(self, value_ids=None, custom_vals=None, size=None):
+    def get_config_image(self, value_ids=None, size=None):
         """
         Retreive the image object that most closely resembles the configuration
         code sent via value_ids list
         For more information check _get_config_image
         """
-        config_image_id = self._get_config_image(
-            value_ids=value_ids, custom_vals=custom_vals
-        )
+        config_image_id = self._get_config_image(value_ids=value_ids)
         return config_image_id.image_1920
 
     @api.model
-    def get_variant_vals(self, value_ids=None, custom_vals=None, **kwargs):
+    def get_variant_vals(self, value_ids=None, **kwargs):
         """Hook to alter the values of the product variant before creation
 
         :param value_ids: list of product.attribute.values ids
@@ -584,11 +510,6 @@ class ProductConfigSession(models.Model):
 
         if value_ids is None:
             value_ids = self.value_ids.ids
-
-        if custom_vals is None:
-            # TODO(Karl): Fix
-            # custom_vals = self._get_custom_vals_dict()
-            custom_vals = {}
 
         image = self.get_config_image(value_ids)
         ptav_ids = self.env["product.template.attribute.value"].search(
@@ -632,7 +553,6 @@ class ProductConfigSession(models.Model):
         state,
         product_tmpl_id=False,
         value_ids=False,
-        custom_value_ids=False,
     ):
         """Find and return next step if exit. This usually
         implies the next configuration step (if any) defined via the
@@ -643,16 +563,14 @@ class ProductConfigSession(models.Model):
             product_tmpl_id = self.product_tmpl_id
         if value_ids is False:
             value_ids = self.value_ids
-        if custom_value_ids is False:
-            custom_value_ids = self.custom_value_ids
         if not state:
             state = self.config_step
 
         cfg_step_lines = product_tmpl_id.config_step_line_ids
         if not cfg_step_lines:
-            if (value_ids or custom_value_ids) and state != "select":
+            if value_ids and state != "select":
                 return False
-            elif not (value_ids or custom_value_ids) and state != "select":
+            elif not value_ids and state != "select":
                 raise UserError(
                     _(
                         "You must select at least one "
@@ -679,7 +597,7 @@ class ProductConfigSession(models.Model):
             next_step = str(next_step.id) if next_step else None
         if next_step:
             pass
-        elif not (value_ids or custom_value_ids):
+        elif not value_ids:
             raise UserError(
                 _(
                     "You must select at least one "
@@ -803,18 +721,16 @@ class ProductConfigSession(models.Model):
         """
         if value_ids is None:
             value_ids = self.value_ids
-        if custom_value_ids is None:
-            custom_value_ids = self.custom_value_ids
-        custom_attr_selected = custom_value_ids.mapped("attribute_id")
+        # TODO: FIXME
+        # if custom_value_ids is None:
+        #     custom_value_ids = self.custom_value_ids
+        # custom_attr_selected = custom_value_ids.mapped("attribute_id")
         open_step_lines = self.get_open_step_lines()
         step_to_open = False
         for step in open_step_lines:
             unset_attr_line = step.attribute_line_ids.filtered(
                 lambda attr_line: attr_line.required
                 and not any([value in value_ids for value in attr_line.value_ids])
-                and not (
-                    attr_line.custom and attr_line.attribute_id in custom_attr_selected
-                )
             )
             check_val_ids = unset_attr_line.mapped("value_ids")
             avail_val_ids = self.values_available(
@@ -851,13 +767,7 @@ class ProductConfigSession(models.Model):
             domain.append(("product_template_attribute_value_ids", "=", value_id.id))
         return domain
 
-    def validate_domains_against_sels(self, domains, value_ids=None, custom_vals=None):
-
-        if custom_vals is None:
-            # TODO(Karl): Fix me
-            # custom_vals = self._get_custom_vals_dict()
-            custom_vals = {}
-
+    def validate_domains_against_sels(self, domains, value_ids=None):
         if value_ids is None:
             value_ids = self.value_ids.ids
 
@@ -895,7 +805,6 @@ class ProductConfigSession(models.Model):
         self,
         check_val_ids=None,
         value_ids=None,
-        custom_vals=None,
         product_tmpl_id=None,
     ):
         """Determines whether the attr_values from the product_template
@@ -905,7 +814,6 @@ class ProductConfigSession(models.Model):
         :param check_val_ids: list of attribute value ids to check for
                               availability
         :param value_ids: list of attribute value ids
-        :param custom_vals: custom values dict {attr_id: custom_val}
 
         :returns: list of available attribute values
         """
@@ -925,11 +833,6 @@ class ProductConfigSession(models.Model):
         elif value_ids:
             value_ids = value_ids.copy()
 
-        if custom_vals is None:
-            # TODO(Karl): fixme
-            # custom_vals = self._get_custom_vals_dict()
-            custom_vals = {}
-
         # TODO(Karl): Add support for standard exclusions!
         # temporary patch until exclusions support is added
         avail_val_ids = check_val_ids
@@ -947,29 +850,17 @@ class ProductConfigSession(models.Model):
         )
         return extra_attribute_line_ids
 
-    def check_attributes_configuration(
-        self, attribute_line_ids, custom_vals, value_ids, final=True
-    ):
+    def check_attributes_configuration(self, attribute_line_ids, value_ids, final=True):
         for line in attribute_line_ids:
-            # Validate custom values
             attr = line.attribute_id
-            if attr.id in custom_vals:
-                attr.validate_custom_val(custom_vals[attr.id])
             if final:
                 common_vals = set(value_ids) & set(line.value_ids.ids)
-                custom_val = custom_vals.get(attr.id)
                 avail_val_ids = self.values_available(
                     line.value_ids.ids,
                     value_ids,
                     product_tmpl_id=self.product_tmpl_id,
                 )
-                if (
-                    line.required
-                    and avail_val_ids
-                    and not common_vals
-                    and not custom_val
-                ):
-                    # TODO: Verify custom value type to be correct
+                if line.required and avail_val_ids and not common_vals:
                     raise ValidationError(
                         _("Required attribute '%s' is empty") % attr.name
                     )
@@ -978,7 +869,6 @@ class ProductConfigSession(models.Model):
     def validate_configuration(
         self,
         value_ids=None,
-        custom_vals=None,
         product_tmpl_id=False,
         final=True,
     ):
@@ -986,7 +876,6 @@ class ProductConfigSession(models.Model):
         custom_vals are valid
 
         :param value_ids: list of attribute value ids
-        :param custom_vals: custom values dict {attr_id: custom_val}
         :param final: boolean marker to check required attributes.
                       pass false to check non-final configurations
 
@@ -1005,19 +894,12 @@ class ProductConfigSession(models.Model):
 
         product_tmpl.ensure_one()
 
-        if custom_vals is None:
-            # TODO(Karl): FIXME
-            # custom_vals = self._get_custom_vals_dict()
-            custom_vals = {}
-
         open_step_lines = self.get_open_step_lines()
         attribute_line_ids = open_step_lines.mapped("attribute_line_ids")
         attribute_line_ids += self.get_extra_attribute_line_ids(
             product_template_id=product_tmpl
         )
-        self.check_attributes_configuration(
-            attribute_line_ids, custom_vals, value_ids, final=final
-        )
+        self.check_attributes_configuration(attribute_line_ids, value_ids, final=final)
 
         # Check if all all the values passed are not restricted
         avail_val_ids = self.values_available(
@@ -1042,36 +924,6 @@ class ProductConfigSession(models.Model):
                     ", ".join(val.mapped("name")),
                 )
             raise ValidationError(message)
-
-        # TODO(Karl): This needs to be fixed
-        # Check if custom values are allowed
-        # custom_attr_ids = (
-        #     product_tmpl.attribute_line_ids.filtered("custom")
-        #     .mapped("attribute_id")
-        #     .ids
-        # )
-        # if not set(custom_vals.keys()) <= set(custom_attr_ids):
-        #     custom_attrs_with_error = list(
-        #         set(custom_vals.keys()) - set(custom_attr_ids)
-        #     )
-        #     custom_attrs_with_error = self.env["product.attribute"].browse(
-        #         custom_attrs_with_error
-        #     )
-        #     error_message = _(
-        #         "The following custom values are not permitted "
-        #         "according to the product template - %s.\n\nIt is possible "
-        #         "that a change has been made to allowed custom values "
-        #         "while your configuration was in process. Please reset your "
-        #         "current session and start over or contact your administrator"
-        #         " in order to proceed."
-        #     )
-        #     message_vals = ""
-        #     for attr_id in custom_attrs_with_error:
-        #         message_vals += "\n%s: %s" % (
-        #             attr_id.name,
-        #             custom_vals.get(attr_id.id),
-        #         )
-        #     raise ValidationError(error_message % (message_vals))
 
         # Check if there are multiple values passed for non-multi attributes
         mono_attr_lines = product_tmpl.attribute_line_ids.filtered(
@@ -1108,7 +960,6 @@ class ProductConfigSession(models.Model):
         given in the custom_vals dict
 
         :param value_ids: list of product.attribute.values ids
-        :param custom_vals: dict {product.attribute.id: custom_value}
 
         :returns: product.product recordset of products matching domain
         """
@@ -1247,80 +1098,3 @@ class ProductConfigSession(models.Model):
                 new_lst.append(new_line)
             values[key] = new_lst
         return values
-
-
-class ProductConfigSessionCustomValue(models.Model):
-    _name = "product.config.session.custom.value"
-    _rec_name = "attribute_id"
-    _description = "Product Config Session Custom Value"
-
-    @api.depends("attribute_id")
-    def _compute_val_name(self):
-        for attr_val_custom in self:
-            attr_val_custom.name = attr_val_custom.value
-
-    name = fields.Char(readonly=True, compute="_compute_val_name", store=True)
-    attribute_id = fields.Many2one(
-        comodel_name="product.attribute", string="Attribute", required=True
-    )
-    cfg_session_id = fields.Many2one(
-        comodel_name="product.config.session",
-        required=True,
-        ondelete="cascade",
-        string="Session",
-    )
-    value = fields.Char(help="Custom value held as string")
-
-    def eval(self):
-        """Return custom value evaluated using the related custom field type"""
-        field_type = self.attribute_id.custom_type
-        if field_type == "integer":
-            return int(self.value)
-        elif field_type == "float":
-            return float(self.value)
-        return self.value
-
-    @api.constrains("cfg_session_id", "attribute_id")
-    def unique_attribute(self):
-        for custom_val in self:
-            if (
-                len(
-                    custom_val.cfg_session_id.custom_value_ids.filtered(
-                        lambda x: x.attribute_id == custom_val.attribute_id
-                    )
-                )
-                > 1
-            ):
-                raise ValidationError(
-                    _("Configuration cannot have the " "same value inserted twice")
-                )
-
-    # @api.constrains('cfg_session_id.value_ids')
-    # def custom_only(self):
-    #     """Verify that the attribute_id is not present in vals as well"""
-    #     import ipdb;ipdb.set_trace()
-    #     if self.cfg_session_id.value_ids.filtered(
-    #             lambda x: x.attribute_id == self.attribute_id):
-    #         raise ValidationError(
-    #             _("Configuration cannot have a selected option and a custom "
-    #               "value with the same attribute")
-    #         )
-
-    @api.constrains("attachment_ids", "value")
-    def check_custom_type(self):
-        for custom_val in self:
-            custom_type = custom_val.attribute_id.custom_type
-            if custom_val.value and custom_type == "binary":
-                raise ValidationError(
-                    _(
-                        "Attribute custom type is binary, attachments are the "
-                        "only accepted values with this custom field type"
-                    )
-                )
-            if custom_val.attachment_ids and custom_type != "binary":
-                raise ValidationError(
-                    _(
-                        "Attribute custom type must be 'binary' for saving "
-                        "attachments to custom value"
-                    )
-                )
