@@ -1,5 +1,4 @@
 import logging
-from ast import literal_eval
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
@@ -114,26 +113,6 @@ class ProductConfigSession(models.Model):
             else:
                 price = 0.00
             session.price = price
-
-    def get_custom_value_id(self):
-        """Return record set of attribute value 'custom'"""
-        custom_ext_id = "product_configurator.custom_attribute_value"
-        custom_val_id = self.env.ref(custom_ext_id)
-        return custom_val_id
-
-    @api.model
-    def _get_custom_vals_dict(self):
-        """Retrieve session custom values as a dictionary of the form
-        {attribute_id: parsed_custom_value}"""
-        custom_vals = {}
-        for val in self.custom_value_ids:
-            if val.attribute_id.custom_type in ["float", "integer"]:
-                custom_vals[val.attribute_id.id] = literal_eval(val.value)
-            elif val.attribute_id.custom_type == "binary":
-                custom_vals[val.attribute_id.id] = val.attachment_ids
-            else:
-                custom_vals[val.attribute_id.id] = val.value
-        return custom_vals
 
     def _compute_config_step_name(self):
         """Get the config.step.line name using the string stored in config_step
@@ -296,8 +275,6 @@ class ProductConfigSession(models.Model):
             "custom_field_prefix"
         )
 
-        custom_val = self.get_custom_value_id()
-
         attr_val_dict = {}
         custom_val_dict = {}
         for attr_line in product_tmpl_id.attribute_line_ids:
@@ -308,37 +285,21 @@ class ProductConfigSession(models.Model):
             if field_name not in vals and custom_field_name not in vals:
                 continue
 
-            # Add attribute values from the client except custom attribute
-            # If a custom value is being written, but field name is not in
-            #   the write dictionary, then it must be a custom value!
-            if vals.get(field_name, custom_val.id) != custom_val.id:
-                if attr_line.multi and isinstance(vals[field_name], list):
-                    if not vals[field_name]:
-                        field_val = None
-                    else:
-                        field_val = vals[field_name][0][2]
-                elif not attr_line.multi and isinstance(vals[field_name], int):
-                    field_val = vals[field_name]
+            if attr_line.multi and isinstance(vals[field_name], list):
+                if not vals[field_name]:
+                    field_val = None
                 else:
-                    raise UserError(
-                        _("An error occursed while parsing value for " "attribute %s")
-                        % attr_line.attribute_id.name
-                    )
-                attr_val_dict.update({attr_id: field_val})
-            # TODO(Karl): FIXME
-            #     # Ensure there is no custom value stored if we have switched
-            #     # from custom value to selected attribute value.
-            #     if attr_line.custom:
-            #         custom_val_dict.update({attr_id: False})
-            # elif attr_line.custom:
-            #     val = vals.get(custom_field_name, False)
-            #     if attr_line.attribute_id.custom_type == "binary":
-            #         # TODO: Add widget that enables multiple file uploads
-            #         val = [{"name": "custom", "datas": vals[custom_field_name]}]
-            #     custom_val_dict.update({attr_id: val})
-            #     # Ensure there is no standard value stored if we have switched
-            #     # from selected value to custom value.
-            #     attr_val_dict.update({attr_id: False})
+                    field_val = vals[field_name][0][2]
+            elif not attr_line.multi and isinstance(vals[field_name], int):
+                field_val = vals[field_name]
+            else:
+                raise UserError(
+                    _("An error occursed while parsing value for attribute %s")
+                    % attr_line.attribute_id.name
+                )
+            attr_val_dict.update({attr_id: field_val})
+
+            # TODO(Karl): FIXME re-add custom options support
 
         self.update_config(attr_val_dict, custom_val_dict)
 
@@ -355,13 +316,6 @@ class ProductConfigSession(models.Model):
         :custom_val_dict: Dictionary of the form {
             int (attribute_id): {
                 'value': 'custom val',
-                OR
-                'attachment_ids': {
-                    [{
-                        'name': 'attachment name',
-                        'datas': base64_encoded_string
-                    }]
-                }
             }
         }
 
@@ -483,10 +437,8 @@ class ProductConfigSession(models.Model):
         if value_ids is None:
             value_ids = self.value_ids.ids
 
-        # TODO(Karl): FIXME
-        # if custom_vals is None:
-        #     custom_vals = self._get_custom_vals_dict()
-
+        # TODO(Karl): FIXME re-add custom vals support
+        # FIXME: validation_configuration should validate custom vals!
         self.validate_configuration()
 
         duplicates = self.search_variant(
@@ -594,7 +546,9 @@ class ProductConfigSession(models.Model):
             value_ids = self.value_ids.ids
 
         if custom_vals is None:
-            custom_vals = self._get_custom_vals_dict()
+            # TODO(Karl)
+            # custom_vals = self._get_custom_vals_dict()
+            custom_vals = {}
 
         img_obj = self.product_tmpl_id
         max_matches = 0
@@ -632,7 +586,9 @@ class ProductConfigSession(models.Model):
             value_ids = self.value_ids.ids
 
         if custom_vals is None:
-            custom_vals = self._get_custom_vals_dict()
+            # TODO(Karl): Fix
+            # custom_vals = self._get_custom_vals_dict()
+            custom_vals = {}
 
         image = self.get_config_image(value_ids)
         ptav_ids = self.env["product.template.attribute.value"].search(
@@ -898,7 +854,9 @@ class ProductConfigSession(models.Model):
     def validate_domains_against_sels(self, domains, value_ids=None, custom_vals=None):
 
         if custom_vals is None:
-            custom_vals = self._get_custom_vals_dict()
+            # TODO(Karl): Fix me
+            # custom_vals = self._get_custom_vals_dict()
+            custom_vals = {}
 
         if value_ids is None:
             value_ids = self.value_ids.ids
@@ -968,7 +926,9 @@ class ProductConfigSession(models.Model):
             value_ids = value_ids.copy()
 
         if custom_vals is None:
-            custom_vals = self._get_custom_vals_dict()
+            # TODO(Karl): fixme
+            # custom_vals = self._get_custom_vals_dict()
+            custom_vals = {}
 
         # TODO(Karl): Add support for standard exclusions!
         # temporary patch until exclusions support is added
@@ -1046,7 +1006,10 @@ class ProductConfigSession(models.Model):
         product_tmpl.ensure_one()
 
         if custom_vals is None:
-            custom_vals = self._get_custom_vals_dict()
+            # TODO(Karl): FIXME
+            # custom_vals = self._get_custom_vals_dict()
+            custom_vals = {}
+
         open_step_lines = self.get_open_step_lines()
         attribute_line_ids = open_step_lines.mapped("attribute_line_ids")
         attribute_line_ids += self.get_extra_attribute_line_ids(

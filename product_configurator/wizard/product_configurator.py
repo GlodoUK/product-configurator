@@ -820,7 +820,6 @@ class ProductConfigurator(models.TransientModel):
         dynamic_fields = attr_vals + custom_attr_vals
         fields = self._remove_dynamic_fields(fields)
 
-        self.env["product.config.session"].get_custom_value_id()
         dynamic_vals = {}
 
         res = super(ProductConfigurator, self).read(fields=fields, load=load)
