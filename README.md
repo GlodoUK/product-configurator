@@ -9,8 +9,8 @@
 
 # Advanced Product Configurator (originally pledra/odoo-product-configurator, and oca/product-configurator)
 
-> :warning: Please do not use this fork for future projects which require dynamic product configuration.
-> 
+> [!WARNING]
+> Please do not use this fork for future projects which require dynamic product configuration.
 > Please instead look at [GlodoUK/cpq](https://github.com/GlodoUK/cpq), which provides a similar feature set, at a lower line of code count, and integrates with existing Odoo features in a 15.0+ world.
 
 ~~We have forked OCA/product-configurator for a few reasons:~~
