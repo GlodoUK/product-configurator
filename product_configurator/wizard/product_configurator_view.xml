@@ -58,7 +58,6 @@
                             >
                                 <tree>
                                     <field name="attribute_id" />
-                                    <field name="custom" />
                                     <field name="multi" />
                                 </tree>
                             </field>

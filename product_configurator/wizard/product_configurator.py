@@ -3,7 +3,6 @@ from lxml import etree
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 
-from odoo.addons.base.models.ir_model import FIELD_TYPES
 from odoo.addons.base.models.ir_ui_view import (
     transfer_field_to_modifiers,
     transfer_modifiers_to_node,
@@ -60,7 +59,7 @@ class ProductConfigurator(models.TransientModel):
                 static_fields[field_name] = fields[field_name]
         return static_fields
 
-    @api.depends("product_tmpl_id", "value_ids", "custom_value_ids")
+    @api.depends("product_tmpl_id", "value_ids")
     def _compute_cfg_image(self):
         # TODO: Update when allowing custom values to influence image
         for configurator in self:
@@ -77,8 +76,6 @@ class ProductConfigurator(models.TransientModel):
             attribute_lines = configurator.product_tmpl_id.attribute_line_ids
             configurator.attribute_line_ids = attribute_lines
 
-    # TODO: We could use a m2o instead of a monkeypatched select field but
-    # adding new steps should be trivial via custom development
     def get_state_selection(self):
         """Get the states of the wizard using standard values and optional
         configuration steps set on the product.template via
@@ -156,7 +153,8 @@ class ProductConfigurator(models.TransientModel):
             if field_name not in values:
                 continue
 
-            vals = values[field_name]
+            # TODO(Karl): why was this here?
+            # values[field_name]
 
             # get available values
 
@@ -167,12 +165,13 @@ class ProductConfigurator(models.TransientModel):
             check_avail_ids = list(
                 set(check_avail_ids) - (set(line.value_ids.ids) - set(avail_ids))
             )
-            # Include custom value in the domain if attr line permits it
-            if line.custom:
-                custom_val = config_session_id.get_custom_value_id()
-                domains[field_name][0][2].append(custom_val.id)
-                if line.multi and vals and custom_val.id in vals[0][2]:
-                    continue
+            # TODO(Karl): FIXME
+            # # Include custom value in the domain if attr line permits it
+            # if line.custom:
+            #     custom_val = config_session_id.get_custom_value_id()
+            #     domains[field_name][0][2].append(custom_val.id)
+            #     if line.multi and vals and custom_val.id in vals[0][2]:
+            #         continue
         return domains
 
     def get_onchange_vals(self, cfg_val_ids, config_session_id=None):
@@ -421,7 +420,7 @@ class ProductConfigurator(models.TransientModel):
         attribute_ids on the product.template as reference"""
 
         field_prefix = self._prefixes.get("field_prefix")
-        custom_field_prefix = self._prefixes.get("custom_field_prefix")
+        self._prefixes.get("custom_field_prefix")
 
         res = super(ProductConfigurator, self).fields_get(
             allfields=allfields, attributes=attributes
@@ -471,32 +470,33 @@ class ProductConfigurator(models.TransientModel):
 
             value_ids = wiz.config_session_id.values_available(check_val_ids=value_ids)
 
-            # If attribute lines allows custom values add the
-            # generic "Custom" attribute.value to the list of options
-            if line.custom:
-                config_session_obj = self.env["product.config.session"]
-                custom_val = config_session_obj.get_custom_value_id()
-                value_ids.append(custom_val.id)
-
-                # Set default field type
-                field_type = "char"
-
-                if attribute.custom_type:
-                    field_types = FIELD_TYPES
-                    custom_type = line.attribute_id.custom_type
-                    # TODO: Rename int to integer in values
-                    if custom_type == "integer":
-                        field_type = "integer"
-                    elif custom_type in [f[0] for f in field_types]:
-                        field_type = custom_type
-
-                # TODO: Implement custom string on custom attribute
-                res[custom_field_prefix + str(attribute.id)] = dict(
-                    default_attrs,
-                    string="Custom",
-                    type=field_type,
-                    sequence=line.sequence,
-                )
+            # TODO(Karl): Fix
+            # # If attribute lines allows custom values add the
+            # # generic "Custom" attribute.value to the list of options
+            # if line.custom:
+            #     config_session_obj = self.env["product.config.session"]
+            #     custom_val = config_session_obj.get_custom_value_id()
+            #     value_ids.append(custom_val.id)
+            #
+            #     # Set default field type
+            #     field_type = "char"
+            #
+            #     if attribute.custom_type:
+            #         field_types = FIELD_TYPES
+            #         custom_type = line.attribute_id.custom_type
+            #         # TODO: Rename int to integer in values
+            #         if custom_type == "integer":
+            #             field_type = "integer"
+            #         elif custom_type in [f[0] for f in field_types]:
+            #             field_type = custom_type
+            #
+            #     # TODO: Implement custom string on custom attribute
+            #     res[custom_field_prefix + str(attribute.id)] = dict(
+            #         default_attrs,
+            #         string="Custom",
+            #         type=field_type,
+            #         sequence=line.sequence,
+            #     )
 
             # Add the dynamic field to the resultset using the convention
             # "__attribute-DBID" to later identify and extract it
@@ -619,53 +619,57 @@ class ProductConfigurator(models.TransientModel):
                 if attr_line.required:
                     attrs["required"].append(("state", "in", ["configure"]))
 
-            if attr_line.custom:
-                pass
-                # TODO: Implement restrictions for ranges
+            # TODO(Karl): FIXME support custom against
 
-            config_lines = wiz.product_tmpl_id.config_line_ids
-            dependencies = config_lines.filtered(
-                lambda cl: cl.attribute_line_id == attr_line
-            )
+            # if attr_line.custom:
+            #     pass
+            #     # TODO: Implement restrictions for ranges
 
-            # If an attribute field depends on another field from the same
-            # configuration step then we must use attrs to enable/disable the
-            # required and readonly depending on the value entered in the
-            # dependee
-
-            if attr_line.value_ids <= dependencies.mapped("value_ids"):
-                attr_depends = {}
-                domain_lines = dependencies.mapped("domain_id.domain_line_ids")
-                for domain_line in domain_lines:
-                    attr_id = domain_line.attribute_id.id
-                    attr_field = field_prefix + str(attr_id)
-                    attr_lines = wiz.product_tmpl_id.attribute_line_ids
-                    # If the fields it depends on are not in the config step
-                    # allow to update attrs for all attribute.\ otherwise
-                    # required will not work with stepchange using statusbar.
-                    # if config_steps and wiz.state not in cfg_step_ids:
-                    #     continue
-                    if attr_field not in attr_depends:
-                        attr_depends[attr_field] = set()
-                    if domain_line.condition == "in":
-                        attr_depends[attr_field] |= set(domain_line.value_ids.ids)
-                    elif domain_line.condition == "not in":
-                        val_ids = attr_lines.filtered(
-                            lambda l: l.attribute_id.id == attr_id
-                        ).value_ids
-                        val_ids = val_ids - domain_line.value_ids
-                        attr_depends[attr_field] |= set(val_ids.ids)
-
-                for dependee_field, val_ids in attr_depends.items():
-                    if not val_ids:
-                        continue
-                    if not attr_line.custom:
-                        attrs["readonly"].append(
-                            (dependee_field, "not in", list(val_ids))
-                        )
-
-                    if attr_line.required and not attr_line.custom:
-                        attrs["required"].append((dependee_field, "in", list(val_ids)))
+            # TODO(Karl): FIXME support dependencies through exclusions
+            #
+            # config_lines = wiz.product_tmpl_id.config_line_ids
+            # dependencies = config_lines.filtered(
+            #     lambda cl: cl.attribute_line_id == attr_line
+            # )
+            #
+            # # If an attribute field depends on another field from the same
+            # # configuration step then we must use attrs to enable/disable the
+            # # required and readonly depending on the value entered in the
+            # # dependee
+            #
+            # if attr_line.value_ids <= dependencies.mapped("value_ids"):
+            #     attr_depends = {}
+            #     domain_lines = dependencies.mapped("domain_id.domain_line_ids")
+            #     for domain_line in domain_lines:
+            #         attr_id = domain_line.attribute_id.id
+            #         attr_field = field_prefix + str(attr_id)
+            #         attr_lines = wiz.product_tmpl_id.attribute_line_ids
+            #         # If the fields it depends on are not in the config step
+            #         # allow to update attrs for all attribute.\ otherwise
+            #         # required will not work with stepchange using statusbar.
+            #         # if config_steps and wiz.state not in cfg_step_ids:
+            #         #     continue
+            #         if attr_field not in attr_depends:
+            #             attr_depends[attr_field] = set()
+            #         if domain_line.condition == "in":
+            #             attr_depends[attr_field] |= set(domain_line.value_ids.ids)
+            #         elif domain_line.condition == "not in":
+            #             val_ids = attr_lines.filtered(
+            #                 lambda l: l.attribute_id.id == attr_id
+            #             ).value_ids
+            #             val_ids = val_ids - domain_line.value_ids
+            #             attr_depends[attr_field] |= set(val_ids.ids)
+            #
+            #     for dependee_field, val_ids in attr_depends.items():
+            #         if not val_ids:
+            #             continue
+            #         if not attr_line.custom:
+            #             attrs["readonly"].append(
+            #                 (dependee_field, "not in", list(val_ids))
+            #             )
+            #
+            #         if attr_line.required and not attr_line.custom:
+            #             attrs["required"].append((dependee_field, "in", list(val_ids)))
         return attrs, field_name, custom_field, config_steps, cfg_step_ids
 
     @api.model
@@ -741,37 +745,38 @@ class ProductConfigurator(models.TransientModel):
             self.setup_modifiers(node)
             xml_dynamic_form.append(node)
 
-            if attr_line.custom and custom_field in dynamic_fields:
-                widget = ""
-                config_session_obj = self.env["product.config.session"]
-                custom_option_id = config_session_obj.get_custom_value_id().id
-
-                if field_type == "many2many":
-                    field_val = [(6, False, [custom_option_id])]
-                else:
-                    field_val = custom_option_id
-
-                attrs["readonly"] += [(field_name, "!=", field_val)]
-                attrs["invisible"] += [(field_name, "!=", field_val)]
-                attrs["required"] += [(field_name, "=", field_val)]
-
-                if config_steps:
-                    attrs["required"] += [("state", "in", cfg_step_ids)]
-
-                # TODO: Add a field2widget mapper
-                if attr_line.attribute_id.custom_type == "color":
-                    widget = "color"
-
-                if len(attrs["invisible"]) > 1 and attrs["invisible"][0] != "|":
-                    attrs["invisible"].insert(0, "|")
-                if len(attrs["readonly"]) > 1 and attrs["readonly"][0] != "|":
-                    attrs["readonly"].insert(0, "|")
-
-                node = etree.Element(
-                    "field", name=custom_field, attrs=str(attrs), widget=widget
-                )
-                self.setup_modifiers(node)
-                xml_dynamic_form.append(node)
+            # TODO(Karl): reintroduce
+            # if attr_line.custom and custom_field in dynamic_fields:
+            #     widget = ""
+            #     config_session_obj = self.env["product.config.session"]
+            #     custom_option_id = config_session_obj.get_custom_value_id().id
+            #
+            #     if field_type == "many2many":
+            #         field_val = [(6, False, [custom_option_id])]
+            #     else:
+            #         field_val = custom_option_id
+            #
+            #     attrs["readonly"] += [(field_name, "!=", field_val)]
+            #     attrs["invisible"] += [(field_name, "!=", field_val)]
+            #     attrs["required"] += [(field_name, "=", field_val)]
+            #
+            #     if config_steps:
+            #         attrs["required"] += [("state", "in", cfg_step_ids)]
+            #
+            #     # TODO: Add a field2widget mapper
+            #     if attr_line.attribute_id.custom_type == "color":
+            #         widget = "color"
+            #
+            #     if len(attrs["invisible"]) > 1 and attrs["invisible"][0] != "|":
+            #         attrs["invisible"].insert(0, "|")
+            #     if len(attrs["readonly"]) > 1 and attrs["readonly"][0] != "|":
+            #         attrs["readonly"].insert(0, "|")
+            #
+            #     node = etree.Element(
+            #         "field", name=custom_field, attrs=str(attrs), widget=widget
+            #     )
+            #     self.setup_modifiers(node)
+            #     xml_dynamic_form.append(node)
         return xml_view
 
     @api.model
@@ -815,7 +820,6 @@ class ProductConfigurator(models.TransientModel):
         dynamic_fields = attr_vals + custom_attr_vals
         fields = self._remove_dynamic_fields(fields)
 
-        custom_val = self.env["product.config.session"].get_custom_value_id()
         dynamic_vals = {}
 
         res = super(ProductConfigurator, self).read(fields=fields, load=load)
@@ -836,35 +840,35 @@ class ProductConfigurator(models.TransientModel):
             res[0].update({field_name: False, custom_field_name: False})
 
             # pylint: disable=context-overridden
-            custom_vals = self.custom_value_ids.filtered(
-                lambda x: x.attribute_id.id == attr_id
-            ).with_context({"show_attribute": False})
+            # TODO(Karl): FIXME re-add support fopr custom_vals
+            # custom_vals = self.custom_value_ids.filtered(
+            #     lambda x: x.attribute_id.id == attr_id
+            # ).with_context({"show_attribute": False})
 
             # pylint: disable=context-overridden
             vals = attr_line.value_ids.filtered(
                 lambda v: v in self.value_ids
             ).with_context(
-                {
-                    "show_attribute": False,
-                    "show_price_extra": True,
-                    "active_id": self.product_tmpl_id.id,
-                }
+                show_attribute=False,
+                show_price_extra=True,
+                active_id=self.product_tmpl_id.id,
             )
 
-            if not attr_line.custom and not vals:
-                continue
-
-            if attr_line.custom and custom_vals:
-                custom_field_val = custom_val.id
-                if load == "_classic_read":
-                    custom_field_val = custom_val.name_get()[0]
-                dynamic_vals.update(
-                    {
-                        field_name: custom_field_val,
-                        custom_field_name: custom_vals.eval(),
-                    }
-                )
-            elif attr_line.multi:
+            # TODO(Karl): fix me
+            # if not attr_line.custom and not vals:
+            #     continue
+            #
+            # if attr_line.custom and custom_vals:
+            #     custom_field_val = custom_val.id
+            #     if load == "_classic_read":
+            #         custom_field_val = custom_val.name_get()[0]
+            #     dynamic_vals.update(
+            #         {
+            #             field_name: custom_field_val,
+            #             custom_field_name: custom_vals.eval(),
+            #         }
+            #     )
+            if attr_line.multi:
                 dynamic_vals = {field_name: vals.ids}
             else:
                 try:
@@ -879,8 +883,10 @@ class ProductConfigurator(models.TransientModel):
         return res
 
     def write(self, vals):
-        """Prevent database storage of dynamic fields and instead write values
-        to database persistent value_ids field"""
+        """
+        Prevent database storage of dynamic fields and instead write values
+        to database persistent value_ids field
+        """
 
         # Remove all dynamic fields from write values
         self.config_session_id.update_session_configuration_value(
@@ -888,7 +894,7 @@ class ProductConfigurator(models.TransientModel):
         )
         vals = self._remove_dynamic_fields(vals)
 
-        return super(ProductConfigurator, self).write(vals)
+        return super().write(vals)
 
     def action_next_step(self):
         """Proceeds to the next step of the configuration process. This usually
@@ -913,7 +919,8 @@ class ProductConfigurator(models.TransientModel):
             state=self.state,
             product_tmpl_id=self.product_tmpl_id,
             value_ids=self.config_session_id.value_ids,
-            custom_value_ids=self.config_session_id.custom_value_ids,
+            # FIXME(Karl):
+            # custom_value_ids=self.config_session_id.custom_value_ids,
         )
         if not next_step:
             return self.action_config_done()
@@ -954,17 +961,13 @@ class ProductConfigurator(models.TransientModel):
     def action_reset(self):
         """Delete wizard and configuration session then create
         a new wizard+session and return an action for the new wizard object"""
-        try:
+
+        session_product_tmpl_id = self.env["product.template"]
+
+        if self.config_session_id:
             session = self.config_session_id
-            # Field parent_id(of session) defind in
-            # product_configurator_subconfig, so this code should
-            # be moved in product_configurator_subconfig
-            # while session.parent_id:
-            #     session = session.parent_id
             session_product_tmpl_id = session.product_tmpl_id
             session.unlink()
-        except Exception:
-            session = self.env["product.config.step"]
 
         action = self.with_context(
             wizard_id=None,
@@ -1017,15 +1020,10 @@ class ProductConfigurator(models.TransientModel):
         return wizard_action
 
     def action_config_done(self):
-        """This method is for the final step which will be taken care by a
-        separate module"""
-        # This try except is too generic.
-        # The create_variant routine could effectively fail for
-        # a large number of reasons, including bad programming.
-        # It should be refactored.
-        # In the meantime, at least make sure that a validation
-        # error legitimately raised in a nested routine
-        # is passed through.
+        """
+        This method is for the final step which will be taken care by a
+        separate module
+        """
         step_to_open = self.config_session_id.check_and_open_incomplete_step()
         if step_to_open:
             return self.open_step(step_to_open)
